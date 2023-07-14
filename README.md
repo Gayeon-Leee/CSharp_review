@@ -39,6 +39,8 @@ C# 개인 공부 및 프로젝트 리포지토리
 	- 라즈베리파이 <-> 아두이노 시리얼 통신 완료 
 	- 라즈베리파이 <-> 윈도우(WPF 앱) MQTT 통신 확인 필요
 	- 통신 완료시 나머지 화면 제작
+
+<img src="https://raw.githubusercontent.com/Gayeon-Leee/CSharp_review/main/Images/smartbuilding1.jpg" width="700"/>
 	
  < ToDoList >
 - [x] 날씨 화면 제작 및 API 연동
