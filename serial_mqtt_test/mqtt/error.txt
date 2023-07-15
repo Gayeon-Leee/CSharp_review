@@ -1,0 +1,34 @@
+Exception in thread Thread-2:
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/threading.py", line 954, in _bootstrap_inner
+    self.run()
+  File "/home/pi/sources/CSharp_review/serial_mqtt_test/mqtt/mqtt1.py", line 55, in run
+    self.client.connect(self.host, self.port)
+  File "/usr/local/lib/python3.9/dist-packages/paho/mqtt/client.py", line 914, in connect
+    Exception in thread return self.reconnect()
+Thread-1:
+  File "/usr/local/lib/python3.9/dist-packages/paho/mqtt/client.py", line 1044, in reconnect
+Traceback (most recent call last):
+  File "/usr/lib/python3.9/threading.py", line 954, in _bootstrap_inner
+    self.run()
+      File "/home/pi/sources/CSharp_review/serial_mqtt_test/mqtt/mqtt1.py", line 30, in run
+sock = self._create_socket_connection()
+  File "/usr/local/lib/python3.9/dist-packages/paho/mqtt/client.py", line 3685, in _create_socket_connection
+    self.client.connect(self.host, self.port)
+  File "/usr/local/lib/python3.9/dist-packages/paho/mqtt/client.py", line 914, in connect
+    return self.reconnect()
+  File "/usr/local/lib/python3.9/dist-packages/paho/mqtt/client.py", line 1044, in reconnect
+    return socket.create_connection(addr, timeout=self._connect_timeout, source_address=source)
+  File "/usr/lib/python3.9/socket.py", line 843, in create_connection
+    sock = self._create_socket_connection()
+  File "/usr/local/lib/python3.9/dist-packages/paho/mqtt/client.py", line 3685, in _create_socket_connection
+    return socket.create_connection(addr, timeout=self._connect_timeout, source_address=source)
+  File "/usr/lib/python3.9/socket.py", line 843, in create_connection
+    raise err
+      File "/usr/lib/python3.9/socket.py", line 831, in create_connection
+raise err
+  File "/usr/lib/python3.9/socket.py", line 831, in create_connection
+    sock.connect(sa)
+socket.timeout: timed out
+    sock.connect(sa)
+socket.timeout: timed out

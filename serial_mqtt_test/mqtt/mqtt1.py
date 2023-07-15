@@ -5,7 +5,7 @@ from threading import Thread, Timer
 import paho.mqtt.client as mqtt
 
 # 아두이노와 시리얼 통신 설정
-ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1) 
+ser = serial.Serial('/dev/ttyACM0', 9600, timeout=5) 
     # /dev/ttyACM0 : Serial device name for the Arduino
     # 9600 : Baud rate => 아두이노랑 같아야함!!
 
