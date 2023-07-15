@@ -16,6 +16,12 @@ def control_LED(data):
     response = ser.readline().decode().strip() # 아두이노로부터 응답받기
     print(f"Response: {response}")
 
+'''
+라즈베리파이 -> 윈도우 MQTT broker 연결 설정
+1. mosquitto/mosquitto.conf 에서 listener 1883 / allow anonymous true 로 바꿔주기
+2. 윈도우 방화벽 설정 확인 : 인바운드 규칙 추가해서  TCP 1883 포트 허용
+'''
+
 # 데이터 보내는 객체
 class publisher(Thread):
     def __init__(self):

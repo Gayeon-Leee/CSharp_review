@@ -247,7 +247,6 @@ namespace appTemplate
             var msg = Encoding.UTF8.GetString(e.Message);
             Debug.WriteLine(msg);
 
-            var currSensor = JsonConvert.DeserializeObject<Dictionary<string, string>>(msg); // 역직렬화
         }
     }
 }

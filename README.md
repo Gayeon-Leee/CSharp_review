@@ -41,6 +41,10 @@ C# 개인 공부 및 프로젝트 리포지토리
 	- 통신 완료시 나머지 화면 제작
 
 <img src="https://raw.githubusercontent.com/Gayeon-Leee/CSharp_review/main/Images/smartbuilding1.jpg" width="700"/>
+
+### 7일차 (7.15)
+- 아두이노 <- 시리얼 통신 -> 라즈베리파이 <- MQTT -> WPF 앱 확인 완료
+	- WPF 앱에서 토글버튼으로 아두이노에 연결된 LED 제어 가능
 	
  < ToDoList >
 - [x] 날씨 화면 제작 및 API 연동
