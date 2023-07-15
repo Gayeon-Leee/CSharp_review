@@ -222,18 +222,23 @@ namespace appTemplate
 
         #endregion
 
-        
+
         private void ToggleSwitch_Toggled(object sender, RoutedEventArgs e)
         {
             ToggleSwitch toggleSwitch = (ToggleSwitch)sender;
 
-            if (toggleSwitch.IsOn == true)
+            if (Commons.MQTT_CLIENT.IsConnected)
             {
-                // LED 켜기
-            }
-            else
-            {
-                 // LED 끄기
+                if (toggleSwitch.IsOn)
+                {
+                    // LED 켜기 메시지 발행
+                    Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC, Encoding.UTF8.GetBytes("1"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+                }
+                else
+                {
+                    // LED 끄기 메시지 발행
+                    Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC, Encoding.UTF8.GetBytes("0"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+                }
             }
         }
 
