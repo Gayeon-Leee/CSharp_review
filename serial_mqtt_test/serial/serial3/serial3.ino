@@ -1,6 +1,8 @@
 int red = 9;
 int green = 11;
 int blue = 10;
+unsigned long previousMillis = 0;
+const unsigned long interval = 2000;
 
 void powerOffAllLEDs()
 {
@@ -11,13 +13,15 @@ void powerOffAllLEDs()
 
 void setup() {
   // put your setup code here, to run once:
+  powerOffAllLEDs();
+  
   Serial.begin(9600);
   
   pinMode(red, OUTPUT);
   pinMode(green, OUTPUT);
   pinMode(blue, OUTPUT);
 
-  powerOffAllLEDs();
+  
 }
 
 void loop() {
@@ -30,24 +34,26 @@ void loop() {
     Serial.print("You sent me: ");
     Serial.println(data);
 
-    if(data == "1") {
-      digitalWrite(red, HIGH);
-      delay(2000);
-      digitalWrite(red, LOW);
-      delay(2000);
+    if(data.toInt() == 1) {
+      unsigned long currentMillis = millis();
+
+      while (millis() - currentMillis < interval) {
+        digitalWrite(red, HIGH);
+        delay(2000);
+        digitalWrite(red, LOW);
+        delay(2000);
     
-      digitalWrite(green, HIGH);
-      delay(2000);
-      digitalWrite(green, LOW);
-      delay(2000);
+        digitalWrite(green, HIGH);
+        delay(2000);
+        digitalWrite(green, LOW);
+        delay(2000);
       
-      digitalWrite(blue, HIGH);
-      delay(2000);
-      digitalWrite(blue, LOW);
-      delay(2000);
+        digitalWrite(blue, HIGH);
+        delay(2000);
+        digitalWrite(blue, LOW);
+        delay(2000);
+      }
     }
-    else if(data == "0") { powerOffAllLEDs(); };
-  
+    else if(data.toInt() == 0) { powerOffAllLEDs(); };
   }
-  
 }

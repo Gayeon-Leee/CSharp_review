@@ -9,7 +9,10 @@ if __name__ == '__main__':
     # serial.Serial()에서 리턴한 값을 ser 변수에 저장하고 reset_input_buffer()로  통신 초기의 이상한 데이터가 아닌 input buffer에 있는 값만 가져옴
 
     while True:
-        ser.write(b"1\n")
-        line = ser.readline().decode('utf-8').rstrip()
-        print(line)
+        ser.write(b"1\n") # 아두이노로 데이터 전송
+
+        if ser.in_waiting > 0: # 수신 데이터 확인
+            line = ser.readline().decode('utf-8').rstrip()
+            print(line)
+        
         time.sleep(1)
