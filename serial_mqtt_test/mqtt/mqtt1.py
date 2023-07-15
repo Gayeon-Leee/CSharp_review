@@ -28,7 +28,6 @@ class publisher(Thread):
 
     def run(self):
         self.client.connect(self.host, self.port)
-        # self.client.username_pw_set() # id/pwd로 로그인 할 때 필요
         self.publish_data_auto()
 
     def publish_data_auto(self):
@@ -45,7 +44,7 @@ class subscriber(Thread):
         self.host = '192.168.124.102'
         self.port = 1883
         self.clientId = 'test_SUB'
-        self.topic = 'pknu/monitor/control/'
+        self.topic = 'pknu/rpi/control/'
         print('subscriber 스레드 시작')
         self.client = mqtt.Client(client_id=self.clientId)
 
