@@ -2,6 +2,9 @@
 using appTemplate.Models;
 using appTemplate.Views;
 using MahApps.Metro.Controls;
+using MQTTnet.Client;
+using MQTTnet.Server;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -9,9 +12,14 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using uPLibrary.Networking.M2Mqtt;
+using uPLibrary.Networking.M2Mqtt.Messages;
+using MqttClient = uPLibrary.Networking.M2Mqtt.MqttClient;
 
 namespace appTemplate
 {
@@ -20,10 +28,12 @@ namespace appTemplate
     /// </summary>
     public partial class MainWindow : MetroWindow
     {
+        public bool IsConnected { get; set; } // MQTT 접속 여부 확인하기 위함
+
         public MainWindow()
         {
             InitializeComponent();
-            WindowState = WindowState.Maximized; // 실행시 전체화면
+            // WindowState = WindowState.Maximized; // 실행시 전체화면
             WindowStartupLocation = WindowStartupLocation.CenterScreen; // 스크린 정 중앙에 창 띄우기 
 
             #region < 대시보드1 날씨영역>
@@ -32,7 +42,9 @@ namespace appTemplate
             Txtday.Text = DateTime.Now.DayOfWeek.ToString();
             TxtTime.Text = DateTime.Now.ToShortTimeString();
             #endregion
+
         }
+
 
         #region <메인 창 로드 영역 - 로그인 창 부분은 앱 구현 마지막 단계에 주석 지우고 사용!>
         private async void MetroWindow_Loaded(object sender, RoutedEventArgs e)
@@ -42,8 +54,29 @@ namespace appTemplate
             //    loginWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner; // MainWindow의 정중앙에 위치
             //    loginWindow.ShowDialog();  // 모달창
 
+            #region < MQTT >
+            Commons.MQTT_CLIENT = new MqttClient(Commons.BROKERHOST); // MQTT 클라이언트 초기화
+            Commons.MQTT_CLIENT.MqttMsgPublishReceived += MQTT_CLIENT_MqttMsgPublishReceived; // MQTT 메시지 수신 이벤트 핸들러 등록
 
-            //OpenAPI로 날씨값 받아오기
+            try
+            {
+                if (!Commons.MQTT_CLIENT.IsConnected)
+                {
+                    // MQTT 브로커에 연결
+                    Commons.MQTT_CLIENT.Connect("MONITOR");
+                    TxtLog.Text = ">>> MQTT Broker Connected";
+
+                    // LED 상태를 확인하기 위해 구독
+                    Commons.MQTT_CLIENT.Subscribe(new string[] { Commons.MQTTTOPIC }, new byte[] { MqttMsgBase.QOS_LEVEL_AT_MOST_ONCE });
+                }
+            }
+            catch (Exception ex)
+            {
+                TxtLog.Text =  $"MQTT Error: {ex.Message}";
+            }
+            #endregion
+
+            #region < OpenAPI로 날씨값 받아오기 >
             try
             {
                 await CheckWeatehr();
@@ -53,8 +86,9 @@ namespace appTemplate
                 await Logics.Commons.ShowMessageAsync("오류", $"오류 발생 : 날씨 정보를 받아올 수 없습니다.");
                 // 기상청 API 초단기실황 자체가 생성, 조회되는 기준시간이 있기 때문에 시간이 안맞으면 오류 발생 할 수 있음
                 // 1. 24시간 동안만의 결과값을 제공  그 이전 값은 조회 오류 => 현재 날짜로 조회하기 때문에 이 문제는 해당X
-                // 2. 기준시간 00시의 값은 00시 30분에 생성되어 제공되기 때문에 새벽 12시~12시 30분 사이에 조회하면 값이 없음
+                // 2. 기준시간 00시의 값은 00시 30분에 생성되어 제공되기 때문에 새벽 12시~12시 30분 사이에 조회하면 값이 없음 =>
             }
+            #endregion
         }
         #endregion
 
@@ -72,7 +106,7 @@ namespace appTemplate
         public async Task CheckWeatehr() 
         {
             // openAPI 요청 uri
-            string openApiUri = $"http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst?serviceKey={Commons.apiKey}&numOfRows=10&dataType=JSON&pageNo=1&base_date={Commons.convertedToday}&base_time={Commons.currentTime}&nx=98&ny=74";
+            string openApiUri = $"http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst?serviceKey={Commons.apiKey}&numOfRows=10&dataType=JSON&pageNo=1&base_date={Commons.convertedToday}&base_time={Commons.formattedTime}&nx=98&ny=74";
             // 하루 동안만의 결과값 제공함!
             string result = string.Empty; //결과값 초기화
 
@@ -148,10 +182,16 @@ namespace appTemplate
 
                     case "WSD": // 풍속
                         TxtWind.Text = $"{weather.ObsrValue} m/s";
-                        if (weather.ObsrValue < 4) { Txtalarm.Text = "바람 약함"; }
-                        else if (weather.ObsrValue >= 4 && weather.ObsrValue < 9) { Txtalarm.Text = "바람 약간 강함"; }
-                        else if (weather.ObsrValue >= 9 && weather.ObsrValue < 14) { Txtalarm.Text = "바람 강함"; }
-                        else { Txtalarm.Text = "주의! 바람 매우 강함"; }
+                        if (weather.ObsrValue < 4) { Txtalarm.Text = "약함"; }
+                        else if (weather.ObsrValue >= 4 && weather.ObsrValue < 9) { Txtalarm.Text = "약간 강함"; }
+                        else if (weather.ObsrValue >= 9 && weather.ObsrValue < 14) {
+                            Txtalarm.Foreground = Brushes.DarkOrange;
+                            Txtalarm.Text = "강함"; 
+                        }
+                        else {
+                            Txtalarm.Foreground = Brushes.DarkRed;
+                            Txtalarm.Text = "매우 강함"; 
+                        }
                         break;
                 }
             }
@@ -179,8 +219,30 @@ namespace appTemplate
                 }
             }
         }
+
         #endregion
 
+        
+        private void ToggleSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            ToggleSwitch toggleSwitch = (ToggleSwitch)sender;
 
+            if (toggleSwitch.IsOn == true)
+            {
+                // LED 켜기
+            }
+            else
+            {
+                 // LED 끄기
+            }
+        }
+
+        private void MQTT_CLIENT_MqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e)
+        {
+            var msg = Encoding.UTF8.GetString(e.Message);
+            Debug.WriteLine(msg);
+
+            var currSensor = JsonConvert.DeserializeObject<Dictionary<string, string>>(msg); // 역직렬화
+        }
     }
 }
