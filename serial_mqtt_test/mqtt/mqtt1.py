@@ -5,7 +5,7 @@ from threading import Thread, Timer
 import paho.mqtt.client as mqtt
 
 # 아두이노와 시리얼 통신 설정
-ser = serial.Serial('/dev/ttyACM0', 9600, timeout=5) 
+ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1) 
     # /dev/ttyACM0 : Serial device name for the Arduino
     # 9600 : Baud rate => 아두이노랑 같아야함!!
 
@@ -22,7 +22,7 @@ def control_LED(data):
 2. 윈도우 방화벽 설정 확인 : 인바운드 규칙 추가해서  TCP 1883 포트 허용
 '''
 
-# 데이터 보내는 객체
+# WPF로 데이터 보내는 객체
 class publisher(Thread):
     def __init__(self):
         Thread.__init__(self) # 스레드 초기화
@@ -41,9 +41,9 @@ class publisher(Thread):
         pub_data = json.dumps(response) # json 변환
         self.client.publish(topic='pknu/rpi/control/', payload=pub_data)
         print('Data published')
-        Timer(2.0, self.publish_data_auto).start()
+        Timer(2.0, self.publish_data_auto).start() # Timer로 2초에 한 번씩 publish_data_auto 실행해서 MQTT broker로 데이터 전송
 
-# 데이터 받아오는 객체
+# WPF에서 데이터 받아오는 객체
 class subscriber(Thread):
     def __init__(self):
         Thread.__init__(self)
@@ -59,7 +59,7 @@ class subscriber(Thread):
         self.client.on_message = self.onMessage # 접속 후 메세지가 수신되면 처리
         self.client.connect(self.host, self.port)
         self.client.subscribe(topic=self.topic)
-        self.client.loop_forever()
+        self.client.loop_forever() # 현재 스레드에서 무한루프 돌면서 MQTT 브로커와 통신 유지, 새로운 메세지 도착하면 콜백함수 호출해서 해당 메세지 처리
 
     def onConnect(self, mqttc, obj, flags, rc):
         print(f'subscriber 연결됨 rc > {rc}')
