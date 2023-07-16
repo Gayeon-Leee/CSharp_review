@@ -45,7 +45,12 @@ C# 개인 공부 및 프로젝트 리포지토리
 ### 7일차 (7.15)
 - 아두이노 <- 시리얼 통신 -> 라즈베리파이 <- MQTT -> WPF 앱 확인 완료
 	- WPF 앱에서 토글버튼으로 아두이노에 연결된 LED 제어 가능
-	
+<img src="https://raw.githubusercontent.com/Gayeon-Leee/CSharp_review/main/Images/smartbuilding2.gif" width="700"/>
+
+### 8일차 (7.16)
+- Timer 사용 -> 실행 중 현재 시간 실시간으로 바뀜
+- 추가 작업은 센서 및 기능 구현 내용 정리 후 필요
+ 	
  < ToDoList >
 - [x] 날씨 화면 제작 및 API 연동
 - [x] 강수형태 값에 따른 날씨 이미지 변경

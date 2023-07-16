@@ -17,6 +17,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using uPLibrary.Networking.M2Mqtt;
 using uPLibrary.Networking.M2Mqtt.Messages;
 using MqttClient = uPLibrary.Networking.M2Mqtt.MqttClient;
@@ -30,21 +31,33 @@ namespace appTemplate
     {
         public bool IsConnected { get; set; } // MQTT 접속 여부 확인하기 위함
 
+        public DispatcherTimer timer; // 시간 실시간으로 받기 위해 타이머 설정
+
         public MainWindow()
         {
             InitializeComponent();
+            
             // WindowState = WindowState.Maximized; // 실행시 전체화면
             WindowStartupLocation = WindowStartupLocation.CenterScreen; // 스크린 정 중앙에 창 띄우기 
 
-            #region < 대시보드1 날씨영역>
+            // Timer 생성 및 설정
+            timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromSeconds(1); // 1초마다 업데이트
+            timer.Tick += Timer_Tick;
+
+            // Timer 시작
+            timer.Start();
+        }
+
+        #region < 대시보드1 날씨영역 - 시간 실시간으로 받기 위한 메서드>
+        private void Timer_Tick(object sender, EventArgs e)
+        {
             // 날짜, 요일, 시간
             Txtdate.Text = DateTime.Today.ToShortDateString();
             Txtday.Text = DateTime.Now.DayOfWeek.ToString();
             TxtTime.Text = DateTime.Now.ToShortTimeString();
-            #endregion
-
         }
-
+        #endregion
 
         #region <메인 창 로드 영역 - 로그인 창 부분은 앱 구현 마지막 단계에 주석 지우고 사용!>
         private async void MetroWindow_Loaded(object sender, RoutedEventArgs e)
@@ -82,7 +95,7 @@ namespace appTemplate
                 await CheckWeatehr();
             }
             catch
-            { 
+            {
                 await Logics.Commons.ShowMessageAsync("오류", $"오류 발생 : 날씨 정보를 받아올 수 없습니다.");
                 // 기상청 API 초단기실황 자체가 생성, 조회되는 기준시간이 있기 때문에 시간이 안맞으면 오류 발생 할 수 있음
                 // 1. 24시간 동안만의 결과값을 제공  그 이전 값은 조회 오류 => 현재 날짜로 조회하기 때문에 이 문제는 해당X
