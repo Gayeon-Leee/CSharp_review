@@ -61,6 +61,7 @@ C# 개인 공부 및 프로젝트 리포지토리
 	- 기상청 API 대신 웹크롤링해서 받아온 값으로 날씨영역 바인딩
 
 - 대시보드 정리
+<img src="https://raw.githubusercontent.com/Gayeon-Leee/CSharp_review/main/Images/smartbuilding3.png" width="700"/>
  	
  < ToDoList >
 - [x] 날씨 화면 제작 및 API 연동
