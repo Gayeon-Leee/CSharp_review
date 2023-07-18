@@ -6,6 +6,7 @@ using System;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -27,7 +28,7 @@ namespace appTemplate
         public MainWindow()
         {
             InitializeComponent();
-            
+
             // WindowState = WindowState.Maximized; // 실행시 전체화면
             WindowStartupLocation = WindowStartupLocation.CenterScreen; // 스크린 정 중앙에 창 띄우기 
 
@@ -40,13 +41,33 @@ namespace appTemplate
             timer.Start();
         }
 
-        #region < 대시보드1 날씨영역 - 시간 실시간으로 받기 위한 메서드>
-        private void Timer_Tick(object sender, EventArgs e)
+        #region < 대시보드1 날씨영역 - 시간/날씨 실시간으로 받기 위한 메서드>
+        public async void Timer_Tick(object sender, EventArgs e)
         {
             // 날짜, 요일, 시간
             Txtdate.Text = DateTime.Today.ToShortDateString();
             Txtday.Text = DateTime.Now.DayOfWeek.ToString();
             TxtTime.Text = DateTime.Now.ToShortTimeString();
+
+            #region < 날씨 - 기상청 홈페이지 크롤링해서 받아오기 - 기상청 API는 조회 오류 많아서 사용 안함>
+            try
+            {
+
+                // 크롤링할 웹 사이트 URL 설정
+                string url = "https://www.weather.go.kr/w/obs-climate/land/city-obs.do";
+
+                // 웹 페이지 다운로드
+                string htmlContent = DownloadWebPage(url);
+
+                // HTML 파싱하여 부산 날씨 추출
+                ParseWeatherData(htmlContent, "부산");
+
+            }
+            catch (Exception ex)
+            {
+                await Logics.Commons.ShowMessageAsync("오류", $"날씨 조회 오류 : {ex}");
+            }
+            #endregion
         }
         #endregion
 
@@ -58,62 +79,27 @@ namespace appTemplate
             //    loginWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner; // MainWindow의 정중앙에 위치
             //    loginWindow.ShowDialog();  // 모달창
 
+            #region < MQTT >
+            Commons.MQTT_CLIENT = new MqttClient(Commons.BROKERHOST); // MQTT 클라이언트 초기화
+            Commons.MQTT_CLIENT.MqttMsgPublishReceived += MQTT_CLIENT_MqttMsgPublishReceived; // MQTT 메시지 수신 이벤트 핸들러 등록
+
             try
             {
-                #region < MQTT >
-                Commons.MQTT_CLIENT = new MqttClient(Commons.BROKERHOST); // MQTT 클라이언트 초기화
-                Commons.MQTT_CLIENT.MqttMsgPublishReceived += MQTT_CLIENT_MqttMsgPublishReceived; // MQTT 메시지 수신 이벤트 핸들러 등록
-
-                try
+                if (!Commons.MQTT_CLIENT.IsConnected)
                 {
-                    if (!Commons.MQTT_CLIENT.IsConnected)
-                    {
-                        // MQTT 브로커에 연결
-                        Commons.MQTT_CLIENT.Connect("MONITOR");
-                        TxtLog.Text = ">>> MQTT Broker Connected";
+                    // MQTT 브로커에 연결
+                    Commons.MQTT_CLIENT.Connect("MONITOR");
+                    TxtLog.Text = ">>> MQTT Broker Connected";
 
-                        // LED 상태를 확인하기 위해 구독
-                        Commons.MQTT_CLIENT.Subscribe(new string[] { Commons.MQTTTOPIC }, new byte[] { MqttMsgBase.QOS_LEVEL_AT_MOST_ONCE });
-                    }
+                    // LED 상태를 확인하기 위해 구독
+                    Commons.MQTT_CLIENT.Subscribe(new string[] { Commons.MQTTTOPIC }, new byte[] { MqttMsgBase.QOS_LEVEL_AT_MOST_ONCE });
                 }
-                catch (Exception ex)
-                {
-                    TxtLog.Text = $"MQTT Error: {ex.Message}";
-                }
-                #endregion
-
-                #region < OpenAPI로 날씨값 받아오기 >
-                //try
-                //{
-                //    await CheckWeatehr();
-                //}
-                //catch
-                //{
-                //    await Logics.Commons.ShowMessageAsync("오류", $"오류 발생 : 날씨 정보를 받아올 수 없습니다.");
-                //    // 기상청 API 초단기실황 자체가 생성, 조회되는 기준시간이 있기 때문에 시간이 안맞으면 오류 발생 할 수 있음
-                //    // 1. 24시간 동안만의 결과값을 제공  그 이전 값은 조회 오류 => 현재 날짜로 조회하기 때문에 이 문제는 해당X
-                //    // 2. 기준시간 00시의 값은 00시 30분에 생성되어 제공되기 때문에 새벽 12시~12시 30분 사이에 조회하면 값이 없음 =>
-                //}
-                #endregion
-
-                #region < 날씨 - 기상청 홈페이지 크롤링해서 받아오기>
-                // 크롤링할 웹 사이트 URL 설정
-                string url = "https://www.weather.go.kr/w/obs-climate/land/city-obs.do";
-
-                // 웹 페이지 다운로드
-                string htmlContent = DownloadWebPage(url);
-
-                // HTML 파싱하여 부산 날씨 추출
-                ParseWeatherData(htmlContent, "부산");
-
-                #endregion
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"예외 발생: {ex.Message}\n스택 트레이스: {ex.StackTrace}", "예외", MessageBoxButton.OK, MessageBoxImage.Error);
+                TxtLog.Text = $"MQTT Error: {ex.Message}";
             }
-
-           
+            #endregion
         }
         #endregion
 
@@ -129,7 +115,7 @@ namespace appTemplate
             return htmlContent;
         }
 
-        private void ParseWeatherData(string htmlContent, string city)
+        private async void ParseWeatherData(string htmlContent, string city)
         {
             HtmlDocument doc = new HtmlDocument();
             doc.LoadHtml(htmlContent);
@@ -137,9 +123,8 @@ namespace appTemplate
             // table class="table-col" 테이블의 모든 행을 가져옴
             HtmlNodeCollection rows = doc.DocumentNode.SelectNodes("//table[@class='table-col']//tr");
 
-            if (rows != null)
+            try
             {
-                bool foundCity = false;
                 foreach (HtmlNode row in rows)
                 {
                     // 행에서 모든 셀을 가져옴
@@ -147,52 +132,67 @@ namespace appTemplate
 
                     if (cells != null && cells.Count >= 7)
                     {
-                        string location = cells[0].InnerText.Trim();
-                        string cloud = cells[3].InnerText.Trim();
-                      
-                        string temperature = cells[5].InnerText.Trim();
-                        string rainy = cells[8].InnerText.Trim();
-                  
-                        string humidity = cells[9].InnerText.Trim();
-                        string wind = cells[11].InnerText.Trim();
-         
+                        string location = cells[0].InnerText.Trim(); // 이름
+                        string cloud = cells[3].InnerText.Trim(); // 운량
+                        if(cloud is null) // cloud랑 rainy는 밑에서 double로 형변환 해야하기 때문에 비어있으면 조회 오류 발생함 => null값일때의 오류 처리 위해서 0으로 지정
+                        {
+                            cloud = "0";
+                        }
+                        string temperature = cells[5].InnerText.Trim(); // 현재기온
+                        string rainy = cells[8].InnerText.Trim(); // 일강수
+                        if (rainy is null)
+                        {
+                            rainy = "0";
+                        }
+                        string humidity = cells[9].InnerText.Trim(); // 습도
+                        string windScript = cells[11].InnerHtml;
+                        string windSpeed = ExtractWindSpeedFromScriptTag(windScript);
+                        // 풍속값 <script>writeWindSpeed('1.2', false, '', '', 1) 형태 => 정규식 사용해서 풍속만 추출하는 과정 필요함
 
-                        // 지역 이름이 부산이면 데이터를 출력하고 반복을 종료함
+
+                        // 지역 이름이 부산이면 데이터를 출력
                         if (location.Contains(city))
                         {
-                            //GetWeatherImagePath(cloud2, rainy2);
+                            GetWeatherImagePath(Double.Parse(cloud), Double.Parse(rainy));
 
                             TxtTemp.Text = $"{temperature} ℃";
-                            
+
                             TxtHumid.Text = $"{humidity} %";
-                            
-                            TxtWind.Text = $"{wind} m/s";
-                            //if (wind2 < 4) { Txtalarm.Text = "약함"; }
-                            //else if (wind2 >= 4 && wind2 < 9) { Txtalarm.Text = "약간 강함"; }
-                            //else if (wind2 >= 9 && wind2 < 14)
-                            //{
-                            //    Txtalarm.Foreground = Brushes.DarkOrange;
-                            //    Txtalarm.Text = "강함";
-                            //    foundCity = true;
-                            //}
+
+                            TxtWind.Text = $"{windSpeed} m/s";
+
+                            if (Double.Parse(windSpeed) < 4) { Txtalarm.Text = "약함"; }
+                            else if (Double.Parse(windSpeed) >= 4 && Double.Parse(windSpeed) < 9) { Txtalarm.Text = "약간 강함"; }
+                            else if (Double.Parse(windSpeed) >= 9 && Double.Parse(windSpeed) < 14)
+                            {
+                                Txtalarm.Foreground = Brushes.DarkOrange;
+                                Txtalarm.Text = "강함";
+                            }
                             break;
                         }
                     }
                 }
-
-                if (!foundCity)
-                {
-                    Console.WriteLine($"'{city}'의 데이터를 찾을 수 없습니다.");
-                }
             }
-            else
+            catch(Exception e )
             {
-                Console.WriteLine("데이터 테이블을 찾을 수 없습니다.");
+                await Logics.Commons.ShowMessageAsync("오류", $"오류 발생 : {e}");
             }
+
         }
 
-        
-        
+        private string ExtractWindSpeedFromScriptTag(string windScript)
+        {
+            string pattern = @"writeWindSpeed\('([^']+)'";
+            Match match = Regex.Match(windScript, pattern);
+
+            if (match.Success)
+            {
+                return match.Groups[1].Value;
+            }
+
+            return "N/A"; // 풍속 못받아오면 N/A 리턴
+        }
+
 
         #region < 차량 관리 버튼 이벤트 영역 - 자식창 띄우기>
         private void BtnMngCar_Click(object sender, RoutedEventArgs e)
@@ -301,19 +301,23 @@ namespace appTemplate
         #endregion
         private void GetWeatherImagePath(double cloud, double rainy)
         {
-          
-                if (cloud == 0 && rainy == 0)
-                {
-                    ImgWeather.Source = new BitmapImage(new Uri("/Resources/sunny.png", UriKind.Relative));
-                }
-                else if (cloud > 0 && rainy == 0)
-                {
-                    ImgWeather.Source = new BitmapImage(new Uri("/Resources/cloud.png", UriKind.Relative));
-                }
-                else if (cloud > 0 && rainy > 0)
-                {
-                    ImgWeather.Source = new BitmapImage(new Uri("/Resources/rainy.png", UriKind.Relative));
-                }           
+
+            if (cloud <= 2 && rainy == 0)
+            {
+                ImgWeather.Source = new BitmapImage(new Uri("/Resources/sunny.png", UriKind.Relative));
+            }
+            else if (cloud > 2 && cloud < 5 && rainy == 0)
+            {
+                ImgWeather.Source = new BitmapImage(new Uri("/Resources/cloudy-day.png", UriKind.Relative));
+            }
+            else if (cloud > 5 && rainy == 0)
+            {
+                ImgWeather.Source = new BitmapImage(new Uri("/Resources/cloud.png", UriKind.Relative));
+            }
+            else if (rainy > 0)
+            {
+                ImgWeather.Source = new BitmapImage(new Uri("/Resources/rainy.png", UriKind.Relative));
+            }
         }
 
 
@@ -341,6 +345,11 @@ namespace appTemplate
             var msg = Encoding.UTF8.GetString(e.Message);
             Debug.WriteLine(msg);
 
+        }
+
+        private void MetroWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            Environment.Exit(0);
         }
     }
 }

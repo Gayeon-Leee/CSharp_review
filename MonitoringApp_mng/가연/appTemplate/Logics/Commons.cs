@@ -31,9 +31,9 @@ namespace appTemplate.Logics
 
         // 화면마다 공유할 MQTT 브로커 ip 변수
         // 학교용
-        // public static string BROKERHOST { get; set; } = "210.119.12.77";
+         public static string BROKERHOST { get; set; } = "210.119.12.77";
         // 집에서 할 때
-        public static string BROKERHOST { get; set; } = "192.168.124.102";
+        //public static string BROKERHOST { get; set; } = "192.168.124.102";
         public static string MQTTTOPIC { get; set; } = "pknu/rpi/control/";
 
         // MQTT 클라이언트 공용 객체
