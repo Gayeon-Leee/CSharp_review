@@ -2,7 +2,9 @@
 using appTemplate.Views;
 using HtmlAgilityPack;
 using MahApps.Metro.Controls;
+using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
@@ -88,7 +90,7 @@ namespace appTemplate
                 if (!Commons.MQTT_CLIENT.IsConnected)
                 {
                     // MQTT 브로커에 연결
-                    Commons.MQTT_CLIENT.Connect("MONITOR");
+                    Commons.MQTT_CLIENT.Connect("SmartHome");
                     TxtLog.Text = ">>> MQTT Broker Connected";
 
                     // LED 상태를 확인하기 위해 구독
@@ -103,7 +105,9 @@ namespace appTemplate
         }
         #endregion
 
-        #region < 날씨 크롤링 >
+        
+
+        #region < 날씨 크롤링>
         private string DownloadWebPage(string url)
         {
             string htmlContent;
@@ -135,7 +139,7 @@ namespace appTemplate
                     {
                         string location = cells[0].InnerText.Trim(); // 이름
                         string cloud = cells[3].InnerText.Trim(); // 운량
-                        if (cloud is null) // cloud랑 rainy는 밑에서 double로 형변환 해야하기 때문에 비어있으면 조회 오류 발생함 => null값일때의 오류 처리 위해서 0으로 지정
+                        if(cloud is null) // cloud랑 rainy는 밑에서 double로 형변환 해야하기 때문에 비어있으면 조회 오류 발생함 => null값일때의 오류 처리 위해서 0으로 지정
                         {
                             cloud = "0";
                         }
@@ -153,7 +157,7 @@ namespace appTemplate
 
                         // 지역 이름이 부산이면 데이터를 출력
                         if (location.Contains(city))
-                        {
+                        {   
                             try // Double.Parse에서 오류 발생 많음 => 오류 발생시 0으로 
                             {
                                 double convertCloud = Double.Parse(cloud);
@@ -161,7 +165,7 @@ namespace appTemplate
 
                                 GetWeatherImagePath(convertCloud, convertRainy);
                             }
-                            catch
+                            catch 
                             {
                                 double errorCloud = 0;
                                 double errorRainy = 0;
@@ -171,27 +175,39 @@ namespace appTemplate
 
                             TxtTemp.Text = $"{temperature} ℃";
 
-                            TxtHumid.Text = $"{humidity} %";
+                            TxtHumid.Text = $"{humidity} % 입니다.";
 
-                            TxtWind.Text = $"{windSpeed} m/s ";
-
-                            if (Double.Parse(windSpeed) < 4) { Txtalarm.Text = "약함"; }
-                            else if (Double.Parse(windSpeed) >= 4 && Double.Parse(windSpeed) < 9) { Txtalarm.Text = "약간 강함"; }
+                            if (Double.Parse(windSpeed) < 4) { Txtalarm.Text = "[바람 약함]"; }
+                            else if (Double.Parse(windSpeed) >= 4 && Double.Parse(windSpeed) < 9) { Txtalarm.Text = "[바람 약간 강함]"; }
                             else if (Double.Parse(windSpeed) >= 9 && Double.Parse(windSpeed) < 14)
                             {
                                 Txtalarm.Foreground = Brushes.DarkOrange;
-                                Txtalarm.Text = "강함";
+                                Txtalarm.Text = "[주의! 바람 강함]";
                             }
                             break;
                         }
                     }
                 }
             }
-            catch (Exception e)
+            catch(Exception e )
             {
                 await Logics.Commons.ShowMessageAsync("오류", $"오류 발생 : {e}");
+                
             }
 
+        }
+
+        private string ExtractWindSpeedFromScriptTag(string windScript)
+        {
+            string pattern = @"writeWindSpeed\('([^']+)'";
+            Match match = Regex.Match(windScript, pattern);
+
+            if (match.Success)
+            {
+                return match.Groups[1].Value;
+            }
+
+            return "N/A"; // 풍속 못받아오면 N/A 리턴
         }
 
         private void GetWeatherImagePath(double cloud, double rainy)
@@ -214,19 +230,6 @@ namespace appTemplate
                 ImgWeather.Source = new BitmapImage(new Uri("/Resources/rainy.png", UriKind.Relative));
             }
         }
-
-        private string ExtractWindSpeedFromScriptTag(string windScript)
-        {
-            string pattern = @"writeWindSpeed\('([^']+)'";
-            Match match = Regex.Match(windScript, pattern);
-
-            if (match.Success)
-            {
-                return match.Groups[1].Value;
-            }
-
-            return "N/A"; // 풍속 못받아오면 N/A 리턴
-        }
         #endregion
 
         #region < 차량 관리 버튼 이벤트 영역 - 자식창 띄우기>
@@ -239,7 +242,13 @@ namespace appTemplate
         }
         #endregion
 
-        private void ToggleSwitch_Toggled(object sender, RoutedEventArgs e)
+        #region < LED 제어 영역 >
+        private void ToggleSwitch_Toggled_All(object sender, RoutedEventArgs e)
+        {
+            // 전체 소등 이벤트 핸들러 추가
+        }
+
+        private void ToggleSwitch_Toggled_1(object sender, RoutedEventArgs e)
         {
             ToggleSwitch toggleSwitch = (ToggleSwitch)sender;
 
@@ -247,132 +256,185 @@ namespace appTemplate
             {
                 if (toggleSwitch.IsOn)
                 {
-                    // LED 켜기 메시지 발행
-                    Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC, Encoding.UTF8.GetBytes("1"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+                    
+                    // LED1 켜기 메시지 발행
+                    this.Invoke(() =>
+                    {
+                        Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC_LED, Encoding.UTF8.GetBytes("1"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+                    });
+
                 }
+
                 else
                 {
-                    // LED 끄기 메시지 발행
-                    Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC, Encoding.UTF8.GetBytes("0"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+                    
+                    // LED1 끄기 메시지 발행
+                    this.Invoke(() =>
+                    {
+                        Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC_LED, Encoding.UTF8.GetBytes("0"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+                    });
+
                 }
             }
         }
 
+        private void ToggleSwitch_Toggled_2(object sender, RoutedEventArgs e)
+        {
+            ToggleSwitch toggleSwitch = (ToggleSwitch)sender;
+
+            if (Commons.MQTT_CLIENT.IsConnected)
+            {
+                if (toggleSwitch.IsOn)
+                {
+                    // LED2 켜기 메시지 발행
+                    this.Invoke(() =>
+                    {
+                        Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC_LED, Encoding.UTF8.GetBytes("3"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+                    });
+                    
+                }
+                else
+                {
+                    // LED2 끄기 메시지 발행  
+                    this.Invoke(() =>
+                    {
+                        Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC_LED, Encoding.UTF8.GetBytes("2"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+                    });
+                }
+            }
+        }
+
+        private void ToggleSwitch_Toggled_3(object sender, RoutedEventArgs e)
+        {
+            ToggleSwitch toggleSwitch = (ToggleSwitch)sender;
+
+            if (Commons.MQTT_CLIENT.IsConnected)
+            {
+                if (toggleSwitch.IsOn)
+                {
+                    // LED3 켜기 메시지 발행
+                    this.Invoke(() =>
+                    {
+                        Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC_LED, Encoding.UTF8.GetBytes("5"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+
+                    });
+                }
+                else
+                {
+                    // LED3 끄기 메시지 발행
+                    this.Invoke(() =>
+                    {
+                        Commons.MQTT_CLIENT.Publish(Commons.MQTTTOPIC_LED, Encoding.UTF8.GetBytes("4"), MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
+                    });
+                }
+            }
+        }
+        #endregion
+
+        #region <온습도값 구독 영역>
         private void MQTT_CLIENT_MqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e)
         {
             var msg = Encoding.UTF8.GetString(e.Message);
             Debug.WriteLine(msg);
+            try
+            {
+                var currSensor = JsonConvert.DeserializeObject<Dictionary<string, string>>(msg); // 역직렬화
+              
+                if (currSensor["Temp"] != null)
+                {
+                    this.Invoke(() =>
+                    {
+                        var tempValue = currSensor["Temp"];
 
+                        try
+                        {
+                            double converttemp = Double.Parse(tempValue);
+
+                            Txtdegree.Text = $"{tempValue} ℃";
+                            GetDegreeImagePath(converttemp);
+                        }
+                        catch(Exception ex)
+                        {
+                            MessageBox.Show($"Temp Error : {ex.Message}");
+                        }
+
+                    });
+
+                }
+
+                if (currSensor["Humid"] != null)
+                {
+                    this.Invoke(() =>
+                    {
+                        var humidValue = currSensor["Humid"];
+
+                        try
+                        {
+                            double converthumid = Double.Parse(humidValue);
+
+                            Txthumid.Text = $"{humidValue} %";
+                            GetHumidImagePath(converthumid);
+                        }
+
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Humid Error : {ex.Message}");
+                        }
+   
+                    });
+
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"MqttMsgPublishReceived Error : {ex.Message}");
+            }
         }
+        #endregion
 
-        // 클로징 이벤트 
+        #region < 온도 이미지 띄우기 >
+        private void GetDegreeImagePath(double degree)
+        {
+            if (degree <= 18)
+            {
+                Imgdegree.Source = new BitmapImage(new Uri("/Resources/cold.png", UriKind.Relative));
+            }
+            else if (degree > 18 && degree <= 28)
+            {
+                Imgdegree.Source = new BitmapImage(new Uri("/Resources/normal.png", UriKind.Relative));
+            }
+            else if (degree > 28)
+            {
+                Imgdegree.Source = new BitmapImage(new Uri("/Resource/heat.png", UriKind.Relative));
+            }
+        }
+        #endregion
+
+        #region < 습도 이미지 띄우기 >
+        private void GetHumidImagePath(double humid)
+        {
+            if (humid < 40)
+            {
+                Imghumid.Source = new BitmapImage(new Uri("/Resources/dry.png", UriKind.Relative));
+            }
+            else if (humid >= 40 && humid <= 60)
+            {
+                Imghumid.Source = new BitmapImage(new Uri("/Resources/moderate.png", UriKind.Relative));
+            }
+            else if (humid > 60)
+            {
+                Imghumid.Source = new BitmapImage(new Uri("/Resources/damp.png", UriKind.Relative));
+            }
+        }
+        #endregion
+
+
+        // 종료 이벤트 - 프로세스 아예 꺼줌
         private void MetroWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             Process.GetCurrentProcess().Kill();
         }
 
-        #region < 실제 OpenAPI 불러오는 함수 >
-        //public async Task CheckWeatehr() 
-        //{
-        //    // openAPI 요청 uri
-        //    string openApiUri = $"http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst?serviceKey={Commons.apiKey}&numOfRows=10&dataType=JSON&pageNo=1&base_date={Commons.convertedToday}&base_time={Commons.formattedTime}&nx=98&ny=74";
-        //    // 하루 동안만의 결과값 제공함!
-        //    string result = string.Empty; //결과값 초기화
-
-        //    // API 실행할 WebRequest, WebResponse 객체
-        //    WebRequest req = null;
-        //    WebResponse res = null;
-        //    StreamReader reader = null;
-
-        //    try // API 요청
-        //    {
-        //        req = WebRequest.Create(openApiUri); // URL을 넣어서 객체를 생성
-        //        res = await req.GetResponseAsync(); // 요청한 결과를 응답에 할당
-        //        reader = new StreamReader(res.GetResponseStream());
-        //        result = reader.ReadToEnd(); // json결과 텍스트로 저장
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        throw ex; //  MetroWindow_Loaded에서 오류메세지 보여주기 때문에 여기선 그냥 던져주기
-        //    }
-        //    finally
-        //    {
-        //        reader.Close();
-        //        res.Close();
-        //    }
-
-        //    //result를 json으로 변경
-        //    var jsonResult = JObject.Parse(result); // string -> json
-        //    ///Debug.WriteLine(jsonResult.ToString());
-        //    var item = jsonResult["response"]["body"]["items"]["item"]; // json 객체 key값인 item 으로 접근
-        //    //Debug.WriteLine(item.ToString());
-        //    var json_array = item as JArray;
-        //    Debug.WriteLine(json_array.ToString());
-        //    Debug.WriteLine(json_array.Type);
-
-        //    var weatherResult = new List<Weather>(); // json에서 넘어온 배열 담을 리스트
-        //    foreach (var val in json_array)
-        //    {
-        //        var WeatherResult = new Weather()
-        //        {
-        //            BaseDate = Convert.ToInt32(val["baseDate"]),
-        //            BaseTime = Convert.ToInt32(val["baseTime"]),
-        //            Category = Convert.ToString(val["category"]),
-        //            NX = Convert.ToInt32(val["nx"]),
-        //            NY = Convert.ToInt32(val["ny"]),
-        //            ObsrValue = Convert.ToDouble(val["obsrValue"])
-        //        };
-
-        //        weatherResult.Add(WeatherResult);
-        //    }
-
-        //    /* category로 접근 - obsrValue 값 띄워야함.. category 중 실제로 사용할 것
-        //     PTY(강수형태) : 없음(0), 비(1), 비/눈(2), 눈(3), 빗방울(5) -- 흐림으로 정의 , 빗방울눈날림(6) -- 흐림으로 정의, 눈날림(7) -- 흐림으로 정의
-        //     REH(습도) : 실수값으로 반환
-        //     T1H(기온) : 실수값으로 반환
-        //     WSD(풍속) : 실수값으로 반환 / 4미만 : 바람약함 / 4 ~ 8 : 약간강(안면감촉, 나뭇잎 조금 흔들림) / 9 ~ 13 : 강(나무가지 깃발 가볍게 흔들림) / 14~ : 매우강(먼지 일고 나무 전체 흔들림) 
-        //     */
-
-        //    foreach (var weather in weatherResult)
-        //    {
-        //        switch (weather.Category) // Category 기준으로 화면에 값 띄워줌
-        //        {
-        //            case "PTY": // 날씨 이미지
-        //                GetWeatherImagePath(weather.ObsrValue, weather);
-        //                break;
-
-        //            case "T1H": // 기온
-        //                TxtTemp.Text = $"{weather.ObsrValue} ℃";
-        //                break;
-
-        //            case "REH": // 습도
-        //                TxtHumid.Text = $"{weather.ObsrValue} %";
-        //                break;
-
-        //            case "WSD": // 풍속
-        //                TxtWind.Text = $"{weather.ObsrValue} m/s";
-        //                if (weather.ObsrValue < 4) { Txtalarm.Text = "약함"; }
-        //                else if (weather.ObsrValue >= 4 && weather.ObsrValue < 9) { Txtalarm.Text = "약간 강함"; }
-        //                else if (weather.ObsrValue >= 9 && weather.ObsrValue < 14) {
-        //                    Txtalarm.Foreground = Brushes.DarkOrange;
-        //                    Txtalarm.Text = "강함"; 
-        //                }
-        //                else {
-        //                    Txtalarm.Foreground = Brushes.DarkRed;
-        //                    Txtalarm.Text = "매우 강함"; 
-        //                }
-        //                break;
-        //        }
-        //    }
-        //}
-        #endregion
-
-        private void BtnParking_Click(object sender, RoutedEventArgs e)
-        {
-            var parkingWindow = new Parking();
-            parkingWindow.Owner = this;
-            parkingWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner; // 부모창 정중앙에 띄우기
-            parkingWindow.ShowDialog(); // 모달창
-        }
+        
     }
 }
